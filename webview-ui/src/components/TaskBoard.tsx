@@ -56,15 +56,15 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
   }));
 
   return (
-    <div className="pixel-panel absolute top-0 right-0 h-full w-80 flex flex-col overflow-hidden z-20">
-      <div className="flex items-center justify-between px-8 py-5 border-b border-border">
+    <div className="pixel-panel absolute top-0 right-0 h-full w-320 max-w-[35vw] flex flex-col overflow-hidden z-20">
+      <div className="flex items-center justify-between px-14 py-12 border-b border-border">
         <span className="text-sm">Orca Board</span>
-        <button type="button" onClick={onClose} className="text-sm px-4" aria-label="Close board">
+        <button type="button" onClick={onClose} className="text-sm px-6" aria-label="Close board">
           ✕
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 py-6 flex flex-col gap-8">
+      <div className="flex-1 overflow-y-auto px-14 py-14 flex flex-col gap-20">
         {pendingGates.length > 0 && <DecisionGatePanel gates={pendingGates} />}
 
         {tasks.length === 0 && pendingGates.length === 0 ? (
@@ -76,17 +76,17 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
         ) : (
           grouped.map(({ column, items }) => (
             <section key={column}>
-              <h3 className="text-2xs mb-3" style={{ color: COLUMN_COLOR[column] }}>
+              <h3 className="text-2xs mb-8" style={{ color: COLUMN_COLOR[column] }}>
                 {column} · {items.length}
               </h3>
               {items.length === 0 ? (
                 <p className="text-2xs opacity-40">—</p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="flex flex-col gap-8">
                   {items.map((task) => (
                     <li
                       key={task.id}
-                      className="text-2xs px-5 py-3 border-l-2 leading-snug break-words"
+                      className="text-2xs px-10 py-8 border-l-2 leading-snug break-words"
                       style={{ borderColor: COLUMN_COLOR[column] }}
                     >
                       {task.title}
@@ -111,21 +111,21 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
 function DecisionGatePanel({ gates }: { gates: BoardGate[] }) {
   return (
     <section>
-      <h3 className="text-2xs mb-3" style={{ color: BOARD_STATUS_BLOCKED_COLOR }}>
+      <h3 className="text-2xs mb-8" style={{ color: BOARD_STATUS_BLOCKED_COLOR }}>
         승인 필요 · {gates.length}
       </h3>
-      <ul className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-10">
         {gates.map((gate) => (
           <li
             key={gate.id}
-            className="text-2xs px-5 py-4 border leading-snug break-words"
+            className="text-2xs px-10 py-10 border leading-snug break-words"
             style={{ borderColor: BOARD_STATUS_BLOCKED_COLOR }}
           >
             <p>{gate.question}</p>
             {gate.options && gate.options.length > 0 && (
-              <p className="mt-2 opacity-60">{gate.options.join('  /  ')}</p>
+              <p className="mt-6 opacity-60">{gate.options.join('  /  ')}</p>
             )}
-            <p className="mt-2 opacity-40">Orca 에서 결정하세요</p>
+            <p className="mt-6 opacity-40">Orca 에서 결정하세요</p>
           </li>
         ))}
       </ul>
