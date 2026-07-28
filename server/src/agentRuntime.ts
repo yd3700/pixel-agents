@@ -97,13 +97,16 @@ export class AgentRuntime {
 
     // Wire hook lifecycle callbacks to shared agent operations
     this.hookEventHandler.setLifecycleCallbacks({
-      onExternalSessionDetected: (sessionId, transcriptPath, cwd, providerId, agentKind) => {
+      onExternalSessionDetected: (sessionId, transcriptPath, cwd, source) => {
         const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
-        // A session with no transcript file comes from a hooks-only provider (the Orca
-        // bridge). Its cwd is a real workspace path, which can never match
-        // trackedProjectDirs (those are ~/.claude/projects/<slug> transcript dirs).
-        // Gating it on that check would drop every such agent.
-        const hooksOnly = transcriptPath === undefined;
+        // A hooks-only provider (the Orca bridge) reports a real workspace path as cwd,
+        // which can never match trackedProjectDirs (those are ~/.claude/projects/<slug>
+        // transcript dirs). Gating it on that check would drop every such agent.
+        //
+        // This must come from the provider, not from a missing transcriptPath — the
+        // primary provider also omits transcriptPath on some SessionStart events, and
+        // inferring from that let foreign Claude sessions through the gate.
+        const hooksOnly = source?.hooksOnly === true;
         if (!hooksOnly && !isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
           return;
         }
@@ -122,8 +125,10 @@ export class AgentRuntime {
           (agent) => {
             // Remember which provider reported this session so the UI can badge it.
             // The default provider stays undefined — absent means "no badge needed".
-            if (providerId && providerId !== 'claude') agent.providerId = providerId;
-            if (agentKind) agent.agentKind = agentKind;
+            if (source) {
+              agent.providerId = source.providerId;
+              if (source.agentKind) agent.agentKind = source.agentKind;
+            }
             this.registerAgent(agent.sessionId, agent.id);
           },
         );

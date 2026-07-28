@@ -55,9 +55,21 @@ describe('normalizeHookEvent 매핑', () => {
       kind: 'sessionStart',
       source: 'orca',
       cwd: 'C:/Users/me/orca/projects/backend',
+      // 배지가 'ORCA' 가 아니라 'CODEX' 로 뜨게 하는 값.
+      agentKind: 'codex',
     });
     // transcriptPath 가 있으면 파일 기반 채택 경로로 잘못 빠진다.
     expect((r?.event as { transcriptPath?: string }).transcriptPath).toBeUndefined();
+  });
+
+  it('displayName 은 있을 때만 실린다', () => {
+    const withName = orcaProvider.normalizeHookEvent(
+      bridgeEvent({ type: 'agentStarted', displayName: 'Codex BE' }),
+    );
+    expect((withName?.event as { displayName?: string }).displayName).toBe('Codex BE');
+
+    const without = orcaProvider.normalizeHookEvent(bridgeEvent({ type: 'agentStarted' }));
+    expect('displayName' in (without?.event ?? {})).toBe(false);
   });
 
   it('toolChanged → toolStart', () => {
@@ -88,13 +100,32 @@ describe('normalizeHookEvent 매핑', () => {
     });
   });
 
-  it('gateOpened → permissionRequest', () => {
+  it('gateOpened → permissionRequest, 질문과 선택지를 함께 싣는다', () => {
     const r = orcaProvider.normalizeHookEvent(
-      bridgeEvent({ type: 'gateOpened', gateQuestion: '이메일 인증을 포함할까요?' }),
+      bridgeEvent({
+        type: 'gateOpened',
+        gateQuestion: '이메일 인증을 포함할까요?',
+        gateOptions: ['include', 'exclude'],
+      }),
     );
-    // AgentEvent.permissionRequest 에는 필드가 없다. 질문 본문은 실을 자리가 없고
-    // Decision Gate 패널이 별도 채널로 받는다.
+    expect(r?.event).toEqual({
+      kind: 'permissionRequest',
+      message: '이메일 인증을 포함할까요?',
+      options: ['include', 'exclude'],
+    });
+  });
+
+  it('질문이 없는 gateOpened 는 승인 대기 신호만 보낸다', () => {
+    // 훅으로 "프롬프트가 떴다" 만 알리는 CLI 와 같은 모양이 된다.
+    const r = orcaProvider.normalizeHookEvent(bridgeEvent({ type: 'gateOpened' }));
     expect(r?.event).toEqual({ kind: 'permissionRequest' });
+  });
+
+  it('빈 선택지 배열은 싣지 않는다', () => {
+    const r = orcaProvider.normalizeHookEvent(
+      bridgeEvent({ type: 'gateOpened', gateQuestion: 'q', gateOptions: [] }),
+    );
+    expect('options' in (r?.event ?? {})).toBe(false);
   });
 
   it('agentStopped → sessionEnd', () => {

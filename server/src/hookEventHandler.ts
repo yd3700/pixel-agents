@@ -36,10 +36,17 @@ interface SessionLifecycleCallbacks {
     sessionId: string,
     transcriptPath: string | undefined,
     cwd: string,
-    /** Provider that reported the session. Recorded on the agent so the UI can badge it. */
-    providerId?: string,
-    /** Underlying CLI, when the provider aggregates several. Preferred for the badge. */
-    agentKind?: string,
+    /** Only present when a non-primary provider reported the session. Its absence is
+     *  the signal that this is an ordinary session from the primary provider — callers
+     *  must not infer that from a missing transcriptPath, which the primary provider
+     *  also omits. */
+    source?: {
+      providerId: string;
+      /** Underlying CLI, when the provider aggregates several. Preferred for the badge. */
+      agentKind?: string;
+      /** True when the provider has no transcript files and keeps all state in hooks. */
+      hooksOnly: boolean;
+    },
   ) => void;
   /** Called when /clear is detected via hooks (SessionEnd reason=clear + SessionStart source=clear). */
   onSessionClear?: (
@@ -308,13 +315,26 @@ export class HookEventHandler {
         console.log(
           `[Pixel Agents] Hook: ${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
         );
-      this.lifecycleCallbacks.onExternalSessionDetected?.(
-        pending.sessionId,
-        pending.transcriptPath,
-        pending.cwd,
-        providerId,
-        pending.agentKind,
-      );
+      // The primary provider is called with the original three arguments so existing
+      // callers and tests see no change. Only extra providers carry a source object.
+      if (provider === this.provider) {
+        this.lifecycleCallbacks.onExternalSessionDetected?.(
+          pending.sessionId,
+          pending.transcriptPath,
+          pending.cwd,
+        );
+      } else {
+        this.lifecycleCallbacks.onExternalSessionDetected?.(
+          pending.sessionId,
+          pending.transcriptPath,
+          pending.cwd,
+          {
+            providerId,
+            hooksOnly: hooksOnlyProvider,
+            ...(pending.agentKind ? { agentKind: pending.agentKind } : {}),
+          },
+        );
+      }
       // Re-process this event now that the agent exists
       this.handleEvent(providerId, event);
       return;
