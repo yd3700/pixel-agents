@@ -143,6 +143,10 @@ async function main(): Promise<void> {
       });
     });
 
+    // 화면에서 쌓인 명령을 브리지가 가져간다. 서버는 큐만 들고 있고 Orca 를
+    // 직접 부르지 않는다 — Orca 를 아는 것도, 마스킹도 브리지 한 곳에 모아둔다.
+    server.onCommandDrain(() => boardStore.drain());
+
     // onSetHooksEnabled side effect: install/uninstall hooks when user toggles in UI.
     // Captures config from the outer scope after server.start().
     let currentConfig: { port: number; token: string } | null = null;

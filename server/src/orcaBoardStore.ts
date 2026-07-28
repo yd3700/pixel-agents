@@ -81,8 +81,19 @@ function parseBoard(raw: unknown): OrcaBoard | null {
   return { tasks, gates, at: typeof body['at'] === 'string' ? body['at'] : '' };
 }
 
+/** 브리지가 가져갈 때까지 들고 있는 명령. */
+export type OrcaCommand =
+  { kind: 'focus'; agentId: string } | { kind: 'resolveGate'; gateId: string; resolution: string };
+
+/**
+ * 큐 상한. 브리지가 죽어 있는 동안 클릭이 쌓여도 메모리가 늘지 않게 한다.
+ * 넘치면 오래된 것부터 버린다 — 방금 누른 것이 가장 하고 싶은 일이다.
+ */
+const MAX_QUEUE = 32;
+
 export class OrcaBoardStore {
   private board: OrcaBoard = EMPTY;
+  private queue: OrcaCommand[] = [];
 
   /** 브리지 페이로드를 받는다. 형태가 맞지 않으면 무시하고 false 를 돌려준다. */
   update(raw: unknown): boolean {
@@ -101,7 +112,49 @@ export class OrcaBoardStore {
     return this.board.tasks.length === 0 && this.board.gates.length === 0;
   }
 
+  /**
+   * 게이트 결정을 큐에 넣는다. **현재 보드에 대조해서** 통과한 것만 받는다.
+   *
+   * 화면이 보낸 id 를 그대로 브리지에 넘기면, 화면을 조작할 수 있는 쪽이
+   * 임의의 게이트를 임의의 값으로 결정할 수 있게 된다. 브리지도 자기 스냅샷으로
+   * 다시 막지만, 애초에 큐에 들어가지 않는 게 맞다.
+   */
+  enqueueResolveGate(gateId: unknown, resolution: unknown): boolean {
+    if (typeof gateId !== 'string' || typeof resolution !== 'string') return false;
+
+    const gate = this.board.gates.find((g) => g.id === gateId);
+    if (!gate || gate.status !== 'pending') return false;
+    if (!gate.options?.includes(resolution)) return false;
+
+    return this.enqueue({ kind: 'resolveGate', gateId, resolution });
+  }
+
+  /**
+   * 캐릭터 클릭 → 터미널 포커스.
+   *
+   * 보드가 아니라 에이전트 쪽 정보라 여기서는 형태만 본다. 실제로 살아 있는
+   * 에이전트인지는 브리지가 자기 스냅샷으로 판단한다 — 그쪽이 원본이다.
+   */
+  enqueueFocus(agentId: unknown): boolean {
+    if (typeof agentId !== 'string' || !agentId.startsWith('orca:')) return false;
+    return this.enqueue({ kind: 'focus', agentId });
+  }
+
+  /** 브리지가 가져간다. 넘겨준 것은 큐에서 지운다 — 두 번 실행하면 안 된다. */
+  drain(): OrcaCommand[] {
+    const out = this.queue;
+    this.queue = [];
+    return out;
+  }
+
+  private enqueue(command: OrcaCommand): boolean {
+    this.queue.push(command);
+    if (this.queue.length > MAX_QUEUE) this.queue.shift();
+    return true;
+  }
+
   clear(): void {
     this.board = EMPTY;
+    this.queue = [];
   }
 }

@@ -42,6 +42,7 @@ export type ClientMessage =
   | WebviewReady
   | LaunchAgent
   | FocusAgent
+  | ResolveGate
   | CloseAgent
   | SaveAgentSeats
   | SaveLayout
@@ -310,6 +311,12 @@ export interface LaunchAgent {
 export interface FocusAgent {
   type: 'focusAgent';
   id: number;
+}
+
+export interface ResolveGate {
+  type: 'resolveGate';
+  gateId: string;
+  resolution: string;
 }
 
 export interface CloseAgent {

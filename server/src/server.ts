@@ -26,6 +26,7 @@ export type { ServerConfig } from './serverConfig.js';
 /** Callback invoked when a hook event is received from a provider's hook script. */
 type HookEventCallback = (providerId: string, event: Record<string, unknown>) => void;
 type BoardUpdateCallback = (providerId: string, board: Record<string, unknown>) => void;
+type CommandDrainCallback = (providerId: string) => unknown[];
 
 /**
  * Pixel Agents server: receives hook events, broadcasts state via WebSocket,
@@ -51,10 +52,16 @@ export class PixelAgentsServer {
   private ownsServer = false;
   private callback: HookEventCallback | null = null;
   private boardCallback: BoardUpdateCallback | null = null;
+  private commandDrainCallback: CommandDrainCallback | null = null;
 
   /** Register a callback for orchestration board snapshots (POST /api/board/:providerId). */
   onBoardUpdate(callback: BoardUpdateCallback): void {
     this.boardCallback = callback;
+  }
+
+  /** Register the drain for queued commands (GET /api/board/:providerId/commands). */
+  onCommandDrain(callback: CommandDrainCallback): void {
+    this.commandDrainCallback = callback;
   }
 
   /** Register a callback for incoming hook events from any provider. */
@@ -112,6 +119,7 @@ export class PixelAgentsServer {
       assetCache: options?.assetCache,
       onHookEvent: (providerId, event) => this.callback?.(providerId, event),
       onBoardUpdate: (providerId, board) => this.boardCallback?.(providerId, board),
+      onCommandDrain: (providerId) => this.commandDrainCallback?.(providerId) ?? [],
       onSetHooksEnabled: options?.onSetHooksEnabled,
       onReloadAssets: options?.onReloadAssets,
     });

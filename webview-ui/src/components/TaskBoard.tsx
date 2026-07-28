@@ -5,8 +5,9 @@
  * 보여준다. 둘을 동시에 봐야 관제 화면이 되므로 모달이 아니라 도킹으로 둔다.
  *
  * 승인 대기가 맨 위에 온다. 사용자가 막고 있는 것이 가장 급한 정보이기 때문이다.
- * 해결 버튼은 없다 — 지금은 읽기 전용 관제 화면이고, Orca 로 되쏘는 것은 V1.0 이다.
  */
+import { useState } from 'react';
+
 import type { BoardGate, BoardTask } from '../../../core/src/messages.js';
 import {
   BOARD_STATUS_BLOCKED_COLOR,
@@ -14,6 +15,8 @@ import {
   BOARD_STATUS_READY_COLOR,
   BOARD_STATUS_WORKING_COLOR,
 } from '../constants.js';
+import { transport } from '../transport/index.js';
+import { Button } from './ui/Button.js';
 
 interface TaskBoardProps {
   tasks: BoardTask[];
@@ -105,8 +108,12 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
 /**
  * 승인 대기 목록.
  *
- * 선택지를 버튼이 아니라 텍스트로 보여준다. 누르면 Orca 에 결정을 되쏘는 것처럼
- * 보이는데 실제로는 아무 일도 일어나지 않기 때문이다. 되쏘기는 V1.0 이다.
+ * 선택지를 누르면 바로 실행하지 않고 확인을 한 번 더 받는다. 게이트 결정은
+ * 막혀 있던 작업을 풀어 실제 작업 배정으로 이어지고 되돌리기 어려운데,
+ * 이 화면은 사무실처럼 생겨서 오클릭이 나기 쉽다.
+ *
+ * 선택지가 없는 자유 서술형 게이트는 버튼을 주지 않는다 — 임의 문자열은
+ * "이미 제시된 것 중에서만" 이라는 제약 밖이라 Orca 에서 결정하게 둔다.
  */
 function DecisionGatePanel({ gates }: { gates: BoardGate[] }) {
   return (
@@ -116,19 +123,55 @@ function DecisionGatePanel({ gates }: { gates: BoardGate[] }) {
       </h3>
       <ul className="flex flex-col gap-10">
         {gates.map((gate) => (
-          <li
-            key={gate.id}
-            className="text-2xs px-10 py-10 border leading-snug break-words"
-            style={{ borderColor: BOARD_STATUS_BLOCKED_COLOR }}
-          >
-            <p>{gate.question}</p>
-            {gate.options && gate.options.length > 0 && (
-              <p className="mt-6 opacity-60">{gate.options.join('  /  ')}</p>
-            )}
-            <p className="mt-6 opacity-40">Orca 에서 결정하세요</p>
-          </li>
+          <GateCard key={gate.id} gate={gate} />
         ))}
       </ul>
     </section>
+  );
+}
+
+function GateCard({ gate }: { gate: BoardGate }) {
+  const [pending, setPending] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const confirm = (resolution: string) => {
+    transport.send({ type: 'resolveGate', gateId: gate.id, resolution });
+    setPending(null);
+    // 실제 반영은 브리지 폴링(최대 2초) 뒤 보드가 갱신되며 사라진다.
+    // 그때까지 버튼을 다시 누를 수 있으면 같은 결정을 두 번 보내게 된다.
+    setSent(true);
+  };
+
+  return (
+    <li
+      className="text-2xs px-10 py-10 border leading-snug break-words"
+      style={{ borderColor: BOARD_STATUS_BLOCKED_COLOR }}
+    >
+      <p>{gate.question}</p>
+
+      {sent ? (
+        <p className="mt-8 opacity-60">결정을 보냈습니다…</p>
+      ) : !gate.options?.length ? (
+        <p className="mt-6 opacity-40">Orca 에서 결정하세요</p>
+      ) : pending ? (
+        <div className="mt-8 flex flex-col gap-6">
+          <p className="opacity-80">&apos;{pending}&apos; 로 결정합니다</p>
+          <div className="flex gap-6">
+            <Button variant="accent" onClick={() => confirm(pending)}>
+              확인
+            </Button>
+            <Button onClick={() => setPending(null)}>취소</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 flex flex-wrap gap-6">
+          {gate.options.map((option) => (
+            <Button key={option} onClick={() => setPending(option)}>
+              {option}
+            </Button>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }

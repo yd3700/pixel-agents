@@ -39,6 +39,8 @@ export interface HttpServerOptions {
   /** Callback when an orchestration board snapshot is received. Global state, not
    *  per-agent, so it does not go through the hook route. */
   onBoardUpdate?: (providerId: string, board: Record<string, unknown>) => void;
+  /** Called when the bridge polls for queued commands. Returns and clears the queue. */
+  onCommandDrain?: (providerId: string) => unknown[];
   /** Invoked when setHooksEnabled is toggled via WebSocket. Standalone installs/uninstalls hooks here. */
   onSetHooksEnabled?: SetHooksEnabledSideEffect;
   /** Invoked when an external asset directory is added/removed. Standalone reloads + re-broadcasts assets here. */
@@ -171,6 +173,28 @@ function registerBoardRoute(app: FastifyInstance, options: HttpServerOptions): v
       reply.send('ok');
     },
   );
+
+  // 브리지가 화면에서 쌓인 명령을 가져간다. 브리지가 리스너를 열지 않도록
+  // 서버가 큐를 들고 있고 브리지는 기존 폴링 루프에서 드레인한다.
+  app.get<{ Params: { providerId: string } }>(
+    `${BOARD_API_PREFIX}/:providerId/commands`,
+    {
+      preHandler: bearerAuth(options.token),
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            providerId: { type: 'string', pattern: '^[a-z0-9-]+$' },
+          },
+          required: ['providerId'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const commands = options.onCommandDrain?.(request.params.providerId) ?? [];
+      reply.send({ v: 1, commands });
+    },
+  );
 }
 
 // ── WebSocket ──────────────────────────────────────────────────
@@ -205,6 +229,10 @@ function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions
         parentAgentId: agent.leadAgentId,
         teamName: agent.teamName,
         hooksOnly: agent.hooksOnly || undefined,
+        // Must mirror what webviewReady puts in agentProviders. Without it the
+        // badge only appeared after a reload — agents that started while the page
+        // was open were never labelled.
+        providerId: agent.providerId ? (agent.agentKind ?? agent.providerId) : undefined,
       });
     };
 

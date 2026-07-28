@@ -122,6 +122,7 @@ components:
         - $ref: '#/components/schemas/WebviewReady'
         - $ref: '#/components/schemas/LaunchAgent'
         - $ref: '#/components/schemas/FocusAgent'
+        - $ref: '#/components/schemas/ResolveGate'
         - $ref: '#/components/schemas/CloseAgent'
         - $ref: '#/components/schemas/SaveAgentSeats'
         - $ref: '#/components/schemas/SaveLayout'
@@ -183,8 +184,10 @@ components:
         providerId:
           type: string
           description: |
-            Provider that created this agent ('claude', 'orca', ...).
-            Omitted for the default provider.
+            Badge label for this agent — its own kind when known ('codex',
+            'gemini'), else the reporting provider ('orca'). Omitted for the
+            default provider. Must match what existingAgents.agentProviders
+            carries, or the badge changes on reload.
 
     AgentClosed:
       description: An agent has been removed from the office.
@@ -240,9 +243,12 @@ components:
         agentProviders:
           type: object
           description: |
-            Map of agent ID (string) to the provider that created the agent
-            ('claude', 'orca', ...). Absent entries mean the default provider.
-            The UI uses this to badge non-default agents.
+            Map of agent ID (string) to the badge label for non-default agents.
+            This is the agent's own kind when known ('codex', 'gemini'), falling
+            back to the provider that reported it ('orca'). Absent entries mean
+            the default provider and get no badge.
+            Despite the field name this is not the provider id — the badge should
+            say what the agent is, not who reported it.
           additionalProperties:
             type: string
 
@@ -741,7 +747,10 @@ components:
           type: boolean
 
     FocusAgent:
-      description: Focus an agent's terminal.
+      description: >
+        Focus an agent's terminal. For Orca-managed agents the standalone server
+        resolves the numeric id to the bridge's session id and queues the focus for
+        the bridge; IDE adapters keep handling their own sessions.
       type: object
       additionalProperties: false
       required: [type, id]
@@ -750,6 +759,21 @@ components:
           const: focusAgent
         id:
           type: integer
+
+    ResolveGate:
+      description: >
+        Decide a pending Orca decision gate. The server drops anything that is not a
+        pending gate on the current board with an option it actually offered.
+      type: object
+      additionalProperties: false
+      required: [type, gateId, resolution]
+      properties:
+        type:
+          const: resolveGate
+        gateId:
+          type: string
+        resolution:
+          type: string
 
     CloseAgent:
       description: Close (dismiss) an agent.

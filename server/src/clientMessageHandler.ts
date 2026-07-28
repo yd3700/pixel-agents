@@ -9,7 +9,13 @@ import { claudeProvider } from './providers/index.js';
 /** Board snapshot store, injected once at startup by the standalone CLI.
  *  Undefined in embedded mode, where no bridge pushes a board. */
 let orcaBoardStore:
-  { get(): { tasks: unknown[]; gates: unknown[]; at: string }; isEmpty(): boolean } | undefined;
+  | {
+      get(): { tasks: unknown[]; gates: unknown[]; at: string };
+      isEmpty(): boolean;
+      enqueueResolveGate(gateId: unknown, resolution: unknown): boolean;
+      enqueueFocus(agentId: unknown): boolean;
+    }
+  | undefined;
 
 export function setOrcaBoardStore(store: typeof orcaBoardStore): void {
   orcaBoardStore = store;
@@ -182,9 +188,36 @@ export function handleClientMessage(
       break;
     }
 
+    /**
+     * Gate decision from the board panel.
+     *
+     * The store validates against the current board — an unknown gate, an
+     * already-decided one, or an option that was never offered is dropped here
+     * and never reaches the bridge. Without that check, anything that can talk
+     * to this socket could decide any gate with any value.
+     */
+    case 'resolveGate': {
+      orcaBoardStore?.enqueueResolveGate(msg.gateId, msg.resolution);
+      break;
+    }
+
+    /**
+     * Character click.
+     *
+     * Reuses the existing message rather than adding an Orca-specific one: the
+     * webview only knows the numeric id, and this server already owns the
+     * id → sessionId mapping. Non-Orca sessions fall through to the IDE adapters,
+     * which is where focus has always been handled.
+     */
+    case 'focusAgent': {
+      const sessionId = store.get(msg.id as number)?.sessionId;
+      if (sessionId?.startsWith('orca:')) orcaBoardStore?.enqueueFocus(sessionId);
+      break;
+    }
+
     default:
-      // focusAgent, exportLayout, importLayout
-      // require IDE-specific handling (not yet implemented for standalone)
+      // exportLayout, importLayout require IDE-specific handling
+      // (not yet implemented for standalone)
       break;
   }
 }
