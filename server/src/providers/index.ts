@@ -6,6 +6,9 @@
  *      (File-based and stream-based provider types will land when the first such
  *       provider ships.)
  *   2. Add an export line below.
+ *   3. For a provider that has no transcript files (push-based, like the Orca
+ *      bridge), leave `sessionFilePattern` undefined and register it at runtime
+ *      with `AgentRuntime.registerProvider()`.
  *
  * The adapter (VS Code extension, standalone CLI, etc.) imports from here rather
  * than reaching into each provider directory directly.
@@ -13,3 +16,4 @@
 
 export { claudeProvider } from './hook/claude/claude.js';
 export { copyHookScript } from './hook/claude/claudeHookInstaller.js';
+export { orcaProvider } from './hook/orca/orca.js';

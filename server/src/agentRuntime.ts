@@ -99,7 +99,12 @@ export class AgentRuntime {
     this.hookEventHandler.setLifecycleCallbacks({
       onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
         const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
-        if (!isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
+        // A session with no transcript file comes from a hooks-only provider (the Orca
+        // bridge). Its cwd is a real workspace path, which can never match
+        // trackedProjectDirs (those are ~/.claude/projects/<slug> transcript dirs).
+        // Gating it on that check would drop every such agent.
+        const hooksOnly = transcriptPath === undefined;
+        if (!hooksOnly && !isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
           return;
         }
         adoptExternalSessionFromHook(
@@ -194,6 +199,17 @@ export class AgentRuntime {
   }
 
   /** Register an agent with the hook event handler for session->agent mapping. */
+  /**
+   * Register an additional hook provider so `POST /api/hooks/:providerId` routes to it.
+   *
+   * The primary provider stays wired to the transcript-parsing singletons; extras only
+   * normalize hook events. Used by the Orca bridge, which reports Codex/Gemini/etc.
+   * sessions that Pixel Agents has no transcript files for.
+   */
+  registerProvider(provider: HookProvider): void {
+    this.hookEventHandler.registerProvider(provider);
+  }
+
   registerAgent(sessionId: string, agentId: number): void {
     this.hookEventHandler.registerAgent(sessionId, agentId);
   }

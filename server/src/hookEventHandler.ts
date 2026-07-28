@@ -69,6 +69,13 @@ export class HookEventHandler {
     private sessionRouter: SessionRouter,
     private watchAllSessionsRef?: { current: boolean },
   ) {
+    this.assertProtocol(provider);
+  }
+
+  /** Providers registered beyond the primary one, keyed by the `:providerId` path param. */
+  private readonly extraProviders = new Map<string, HookProvider>();
+
+  private assertProtocol(provider: HookProvider): void {
     if (provider.protocolVersion !== HookEventHandler.SUPPORTED_PROTOCOL_VERSION) {
       console.warn(
         `[Pixel Agents] HookProvider "${provider.id}" reports protocolVersion=${provider.protocolVersion}, ` +
@@ -76,6 +83,28 @@ export class HookEventHandler {
           `Events from this provider will be dropped.`,
       );
     }
+  }
+
+  /**
+   * Register an additional provider so `POST /api/hooks/:providerId` routes to it.
+   *
+   * The primary provider (Claude) stays wired to the module-level singletons used by
+   * transcript parsing and file watching. Extra providers only take part in hook event
+   * normalization — they have no transcript files to parse.
+   */
+  registerProvider(provider: HookProvider): void {
+    this.assertProtocol(provider);
+    this.extraProviders.set(provider.id, provider);
+  }
+
+  /** Pick the provider that should normalize this event. Falls back to the primary one. */
+  private resolveProvider(providerId: string): HookProvider {
+    return this.extraProviders.get(providerId) ?? this.provider;
+  }
+
+  /** A provider with no transcript files keeps all of its state in hook events. */
+  private static isHooksOnly(provider: HookProvider): boolean {
+    return provider.sessionFilePattern === undefined;
   }
 
   /** Merged set of tool names that spawn subagents (teammates + within-turn subagents
@@ -128,10 +157,14 @@ export class HookEventHandler {
    * @param providerId - Provider that sent the event ('claude', 'codex', etc.)
    * @param event - The hook event payload from the CLI tool
    */
-  handleEvent(_providerId: string, event: HookEvent): void {
-    if (this.provider.protocolVersion !== HookEventHandler.SUPPORTED_PROTOCOL_VERSION) {
-      return; // version mismatch already logged in constructor
+  handleEvent(providerId: string, event: HookEvent): void {
+    const provider = this.resolveProvider(providerId);
+    if (provider.protocolVersion !== HookEventHandler.SUPPORTED_PROTOCOL_VERSION) {
+      return; // version mismatch already logged at registration
     }
+    // Hooks-only providers (Orca bridge) carry no transcript file, so the
+    // tracked-project-dir gate below can never match their cwd. Treat them as tracked.
+    const hooksOnlyProvider = HookEventHandler.isHooksOnly(provider);
     // ── Provider normalization boundary ───────────────────────────────────────
     // All raw Claude-specific fields (tool_name, tool_input, agent_type, teammate_name,
     // task_subject, notification_type,
@@ -139,7 +172,7 @@ export class HookEventHandler {
     // uses the normalized AgentEvent.kind. Raw `event.*` reads are still allowed in a few
     // places for provider-specific metadata that AgentEvent doesn't capture (transcript_path,
     // cwd for external-session adoption; event-specific teammate identity for routing).
-    const normalized = this.provider.normalizeHookEvent(event);
+    const normalized = provider.normalizeHookEvent(event);
     if (!normalized) return; // unknown / uninteresting event -- silently drop
     const normEvent = normalized.event;
     const eventName = event.hook_event_name; // retained for logs only
@@ -171,7 +204,7 @@ export class HookEventHandler {
       const source = normEvent.source ?? 'unknown';
       const transcriptPath = normEvent.transcriptPath;
       const cwd = normEvent.cwd;
-      const tracked = this.isTrackedSession(transcriptPath, cwd);
+      const tracked = hooksOnlyProvider || this.isTrackedSession(transcriptPath, cwd);
       if (debug && tracked)
         console.log(`[Pixel Agents] Hook: SessionStart(source=${source}, session=${sid}...)`);
 
@@ -276,7 +309,7 @@ export class HookEventHandler {
         pending.cwd,
       );
       // Re-process this event now that the agent exists
-      this.handleEvent(_providerId, event);
+      this.handleEvent(providerId, event);
       return;
     }
 
@@ -306,7 +339,7 @@ export class HookEventHandler {
           console.log(
             `[Pixel Agents] Hook: ${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
           );
-        this.sessionRouter.bufferEvent(_providerId, event);
+        this.sessionRouter.bufferEvent(providerId, event);
       }
       return;
     }
