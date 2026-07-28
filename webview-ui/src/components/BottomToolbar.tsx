@@ -13,6 +13,10 @@ interface BottomToolbarProps {
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
   workspaceFolders: WorkspaceFolder[];
+  /** Orca 보드 항목 수. 0이면 버튼 자체를 그리지 않는다 — 브리지가 없으면 없던 UI. */
+  boardCount: number;
+  isBoardOpen: boolean;
+  onToggleBoard: () => void;
 }
 
 export function BottomToolbar({
@@ -22,6 +26,9 @@ export function BottomToolbar({
   isSettingsOpen,
   onToggleSettings,
   workspaceFolders,
+  boardCount,
+  isBoardOpen,
+  onToggleBoard,
 }: BottomToolbarProps) {
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
@@ -134,6 +141,15 @@ export function BottomToolbar({
       >
         Settings
       </Button>
+      {boardCount > 0 && (
+        <Button
+          variant={isBoardOpen ? 'active' : 'default'}
+          onClick={onToggleBoard}
+          title="Orca orchestration board"
+        >
+          Board {boardCount}
+        </Button>
+      )}
     </div>
   );
 }

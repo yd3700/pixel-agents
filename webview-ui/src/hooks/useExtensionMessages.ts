@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import type { BoardGate, BoardTask } from '../../../core/src/messages.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
@@ -55,6 +56,8 @@ export interface WorkspaceFolder {
 
 interface ExtensionMessageState {
   agents: number[];
+  /** Latest Orca orchestration board. Empty arrays until a bridge pushes one. */
+  board: { tasks: BoardTask[]; gates: BoardGate[] };
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
@@ -97,6 +100,11 @@ export function useExtensionMessages(
   isEditDirty?: () => boolean,
 ): ExtensionMessageState {
   const [agents, setAgents] = useState<number[]>([]);
+  /** Latest Orca orchestration board. Empty until a bridge pushes one. */
+  const [board, setBoard] = useState<{ tasks: BoardTask[]; gates: BoardGate[] }>({
+    tasks: [],
+    gates: [],
+  });
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
@@ -270,6 +278,11 @@ export function useExtensionMessages(
         os.removeAllSubagents(id);
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
         os.removeAgent(id);
+      } else if (msg.type === 'taskBoardUpdated') {
+        setBoard({
+          tasks: (msg.tasks ?? []) as BoardTask[],
+          gates: (msg.gates ?? []) as BoardGate[],
+        });
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[];
         const meta = (msg.agentMeta || {}) as Record<
@@ -608,6 +621,7 @@ export function useExtensionMessages(
 
   return {
     agents,
+    board,
     selectedAgent,
     agentTools,
     agentStatuses,

@@ -8,6 +8,7 @@ import { DebugView } from './components/DebugView.js';
 import { EditActionBar } from './components/EditActionBar.js';
 import { MigrationNotice } from './components/MigrationNotice.js';
 import { SettingsModal } from './components/SettingsModal.js';
+import { TaskBoard } from './components/TaskBoard.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Modal } from './components/ui/Modal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
@@ -66,6 +67,7 @@ function App() {
 
   const {
     agents,
+    board,
     selectedAgent,
     agentTools,
     agentStatuses,
@@ -95,6 +97,7 @@ function App() {
   const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
+  const [isBoardOpen, setIsBoardOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
@@ -484,7 +487,14 @@ function App() {
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
+        boardCount={board.tasks.length + board.gates.length}
+        isBoardOpen={isBoardOpen}
+        onToggleBoard={() => setIsBoardOpen((v) => !v)}
       />
+
+      {isBoardOpen && (
+        <TaskBoard tasks={board.tasks} gates={board.gates} onClose={() => setIsBoardOpen(false)} />
+      )}
 
       <VersionIndicator
         currentVersion={extensionVersion}

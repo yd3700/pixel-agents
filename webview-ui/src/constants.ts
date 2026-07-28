@@ -224,6 +224,12 @@ export const TEAM_ROLE_COLOR = '#66aaff';
 /** Badge color for agents reported by a non-default provider (Orca bridge). */
 export const PROVIDER_BADGE_COLOR = '#7dd3fc';
 
+/** Orca board column colors. */
+export const BOARD_STATUS_READY_COLOR = '#9ca3af';
+export const BOARD_STATUS_WORKING_COLOR = '#7dd3fc';
+export const BOARD_STATUS_BLOCKED_COLOR = '#fbbf24';
+export const BOARD_STATUS_DONE_COLOR = '#4ade80';
+
 // ── Pets ────────────────────────────────────────────────────────
 /** Walking speed in world pixels per second (matches character walk speed visually but slower). */
 export const PET_WALK_SPEED_PX_PER_SEC = 32;

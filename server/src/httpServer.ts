@@ -13,7 +13,7 @@ import type {
   SetHooksEnabledSideEffect,
 } from './clientMessageHandler.js';
 import { handleClientMessage } from './clientMessageHandler.js';
-import { HOOK_API_PREFIX, MAX_HOOK_BODY_SIZE } from './constants.js';
+import { BOARD_API_PREFIX, HOOK_API_PREFIX, MAX_HOOK_BODY_SIZE } from './constants.js';
 import type { AgentState } from './types.js';
 
 /** Options for creating the HTTP + WebSocket server. */
@@ -36,6 +36,9 @@ export interface HttpServerOptions {
   assetCache?: AssetCache;
   /** Callback when a hook event is received */
   onHookEvent?: (providerId: string, event: Record<string, unknown>) => void;
+  /** Callback when an orchestration board snapshot is received. Global state, not
+   *  per-agent, so it does not go through the hook route. */
+  onBoardUpdate?: (providerId: string, board: Record<string, unknown>) => void;
   /** Invoked when setHooksEnabled is toggled via WebSocket. Standalone installs/uninstalls hooks here. */
   onSetHooksEnabled?: SetHooksEnabledSideEffect;
   /** Invoked when an external asset directory is added/removed. Standalone reloads + re-broadcasts assets here. */
@@ -81,6 +84,7 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
   registerHealthRoute(app);
   registerHookRoute(app, options);
+  registerBoardRoute(app, options);
   registerWebSocketRoute(app, options);
 
   // ── Listen ──────────────────────────────────────────────────
@@ -130,6 +134,40 @@ function registerHookRoute(app: FastifyInstance, options: HttpServerOptions): vo
         options.onHookEvent?.(providerId, event);
       }
 
+      reply.send('ok');
+    },
+  );
+}
+
+// ── Orchestration Board ────────────────────────────────────────
+
+/**
+ * `POST /api/board/:providerId` — whole-board snapshot from a bridge.
+ *
+ * Deliberately separate from the hook route: hook events are normalized per session
+ * and dispatched to one agent, while the board is global. Squeezing it into the hook
+ * path would mean inventing a synthetic agent to carry it.
+ */
+function registerBoardRoute(app: FastifyInstance, options: HttpServerOptions): void {
+  app.post<{
+    Params: { providerId: string };
+    Body: Record<string, unknown>;
+  }>(
+    `${BOARD_API_PREFIX}/:providerId`,
+    {
+      preHandler: bearerAuth(options.token),
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            providerId: { type: 'string', pattern: '^[a-z0-9-]+$' },
+          },
+          required: ['providerId'],
+        },
+      },
+    },
+    async (request, reply) => {
+      options.onBoardUpdate?.(request.params.providerId, request.body);
       reply.send('ok');
     },
   );

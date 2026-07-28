@@ -9,6 +9,8 @@
 // ── Hook API ─────────────────────────────────────────────────
 
 export const HOOK_API_PREFIX = '/api/hooks';
+/** Orchestration board snapshots. Global state, so it does not use the hook route. */
+export const BOARD_API_PREFIX = '/api/board';
 export const SERVER_JSON_DIR = '.pixel-agents';
 export const SERVER_JSON_NAME = 'server.json';
 export const HOOK_SCRIPTS_DIR = '.pixel-agents/hooks';

@@ -19,9 +19,11 @@ import {
   loadAllPets,
 } from './assetReload.js';
 import type { AssetCache, ReloadAssetsSideEffect } from './clientMessageHandler.js';
+import { setOrcaBoardStore } from './clientMessageHandler.js';
 import { readConfig } from './configPersistence.js';
 import { MAX_PORT, MIN_PORT } from './constants.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
+import { OrcaBoardStore } from './orcaBoardStore.js';
 import { claudeProvider, copyHookScript, orcaProvider } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
 
@@ -115,6 +117,9 @@ async function main(): Promise<void> {
 
   try {
     // Create runtime first (before server.start, so we can pass it in)
+    const boardStore = new OrcaBoardStore();
+    setOrcaBoardStore(boardStore);
+
     const runtime = new AgentRuntime(store, claudeProvider);
     // Orca bridge: reports Codex/Gemini/etc. sessions that have no transcript files.
     runtime.registerProvider(orcaProvider);
@@ -122,6 +127,20 @@ async function main(): Promise<void> {
     // Wire hook events: HTTP POST -> runtime -> hookEventHandler -> agents
     server.onHookEvent((providerId, event) => {
       runtime.handleHookEvent(providerId, event);
+    });
+
+    // Wire orchestration board: HTTP POST -> store -> WebSocket clients.
+    // The board is global state, so it rides the store's broadcast channel rather
+    // than the per-agent hook path.
+    server.onBoardUpdate((_providerId, payload) => {
+      if (!boardStore.update(payload)) return; // unknown schema version or malformed
+      const board = boardStore.get();
+      store.broadcast({
+        type: 'taskBoardUpdated',
+        tasks: board.tasks,
+        gates: board.gates,
+        at: board.at,
+      });
     });
 
     // onSetHooksEnabled side effect: install/uninstall hooks when user toggles in UI.

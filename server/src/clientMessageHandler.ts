@@ -6,6 +6,15 @@ import { readConfig, writeConfig } from './configPersistence.js';
 import { readLayoutFromFile, writeLayoutToFile } from './layoutPersistence.js';
 import { claudeProvider } from './providers/index.js';
 
+/** Board snapshot store, injected once at startup by the standalone CLI.
+ *  Undefined in embedded mode, where no bridge pushes a board. */
+let orcaBoardStore:
+  { get(): { tasks: unknown[]; gates: unknown[]; at: string }; isEmpty(): boolean } | undefined;
+
+export function setOrcaBoardStore(store: typeof orcaBoardStore): void {
+  orcaBoardStore = store;
+}
+
 type WsSend = (message: Record<string, unknown>) => void;
 
 /** Async hook toggle side effect (install/uninstall + script copy). Provided by cli.ts. */
@@ -290,6 +299,14 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     externalAgents,
     agentProviders,
   });
+
+  // 6b. Orchestration board, when a bridge has pushed one. Sent on every
+  // webviewReady so a page reload restores the panel — the bridge only pushes
+  // on change and would not re-send for a new client.
+  const board = orcaBoardStore?.get();
+  if (board && !orcaBoardStore?.isEmpty()) {
+    send({ type: 'taskBoardUpdated', tasks: board.tasks, gates: board.gates, at: board.at });
+  }
 
   // 7. Layout last (see step 3): flushes the webview's buffered existingAgents
   // into characters once seats are rebuilt.

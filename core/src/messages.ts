@@ -58,7 +58,8 @@ export type ClientMessage =
   | RemoveExternalAssetDirectory
   | SaveAreaMappings
   | SetShowAreas
-  | RequestDiagnostics;
+  | RequestDiagnostics
+  | TaskBoardUpdated;
 
 export interface ProviderCapabilities {
   type: 'providerCapabilities';
@@ -395,4 +396,26 @@ export interface SetShowAreas {
 
 export interface RequestDiagnostics {
   type: 'requestDiagnostics';
+}
+
+export interface TaskBoardUpdated {
+  type: 'taskBoardUpdated';
+  tasks: BoardTask[];
+  gates: BoardGate[];
+  at?: string;
+}
+
+export interface BoardTask {
+  id: string;
+  title: string;
+  status: string;
+  blockedBy?: string[];
+}
+
+export interface BoardGate {
+  id: string;
+  taskId?: string;
+  question: string;
+  options?: string[];
+  status: string;
 }

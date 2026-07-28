@@ -139,6 +139,7 @@ components:
         - $ref: '#/components/schemas/SaveAreaMappings'
         - $ref: '#/components/schemas/SetShowAreas'
         - $ref: '#/components/schemas/RequestDiagnostics'
+        - $ref: '#/components/schemas/TaskBoardUpdated'
       discriminator: type
 
     # ── Server message variants ────────────────────────────────────
@@ -934,6 +935,65 @@ components:
           const: requestDiagnostics
 
     # ── Supporting schemas ─────────────────────────────────────────
+
+    TaskBoardUpdated:
+      description: |
+        Latest Orca orchestration board snapshot. Global state, not per-agent —
+        pushed by the bridge to `POST /api/board/:providerId` and re-broadcast here.
+        Also sent once on `webviewReady` so a reload restores the panel.
+      type: object
+      additionalProperties: false
+      required: [type, tasks, gates]
+      properties:
+        type:
+          const: taskBoardUpdated
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoardTask'
+        gates:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoardGate'
+        at:
+          type: string
+          description: When the bridge captured the snapshot (ISO 8601).
+
+    BoardTask:
+      type: object
+      additionalProperties: false
+      required: [id, title, status]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          description: Orca task status — ready, blocked, dispatched, completed, failed.
+        blockedBy:
+          type: array
+          items:
+            type: string
+
+    BoardGate:
+      description: A decision waiting on the user before its task can proceed.
+      type: object
+      additionalProperties: false
+      required: [id, question, status]
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
 
     AgentSeatMeta:
       description: |
