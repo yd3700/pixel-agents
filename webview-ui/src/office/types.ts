@@ -223,6 +223,9 @@ export interface Character {
   matrixEffectSeeds: number[];
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Provider that created this agent ('orca', ...). Undefined for the default
+   *  provider — the badge only appears when the agent came from somewhere else. */
+  providerId?: string;
 
   // -- Agent Teams --
   /** Team name this agent belongs to */

@@ -97,7 +97,7 @@ export class AgentRuntime {
 
     // Wire hook lifecycle callbacks to shared agent operations
     this.hookEventHandler.setLifecycleCallbacks({
-      onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
+      onExternalSessionDetected: (sessionId, transcriptPath, cwd, providerId, agentKind) => {
         const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
         // A session with no transcript file comes from a hooks-only provider (the Orca
         // bridge). Its cwd is a real workspace path, which can never match
@@ -119,7 +119,13 @@ export class AgentRuntime {
           this.waitingTimers,
           this.permissionTimers,
           () => this.store.persist(),
-          (agent) => this.registerAgent(agent.sessionId, agent.id),
+          (agent) => {
+            // Remember which provider reported this session so the UI can badge it.
+            // The default provider stays undefined — absent means "no badge needed".
+            if (providerId && providerId !== 'claude') agent.providerId = providerId;
+            if (agentKind) agent.agentKind = agentKind;
+            this.registerAgent(agent.sessionId, agent.id);
+          },
         );
       },
       onSessionClear: (agentId, newSessionId, newTranscriptPath) => {

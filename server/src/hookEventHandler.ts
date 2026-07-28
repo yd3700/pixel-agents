@@ -36,6 +36,10 @@ interface SessionLifecycleCallbacks {
     sessionId: string,
     transcriptPath: string | undefined,
     cwd: string,
+    /** Provider that reported the session. Recorded on the agent so the UI can badge it. */
+    providerId?: string,
+    /** Underlying CLI, when the provider aggregates several. Preferred for the badge. */
+    agentKind?: string,
   ) => void;
   /** Called when /clear is detected via hooks (SessionEnd reason=clear + SessionStart source=clear). */
   onSessionClear?: (
@@ -275,6 +279,7 @@ export class HookEventHandler {
           sessionId: event.session_id,
           transcriptPath,
           cwd: cwd ?? '',
+          ...(normEvent.agentKind ? { agentKind: normEvent.agentKind } : {}),
         });
       } else {
         if (debug && tracked)
@@ -307,6 +312,8 @@ export class HookEventHandler {
         pending.sessionId,
         pending.transcriptPath,
         pending.cwd,
+        providerId,
+        pending.agentKind,
       );
       // Re-process this event now that the agent exists
       this.handleEvent(providerId, event);

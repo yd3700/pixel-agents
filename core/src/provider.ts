@@ -49,7 +49,15 @@ export type AgentEvent =
       reason: 'idle' | 'completed';
     }
   | { kind: 'progress'; toolId: string; data: unknown }
-  | { kind: 'permissionRequest' }
+  | {
+      kind: 'permissionRequest';
+      /** What the agent is asking. Providers that carry a question with the request
+       *  (Orca decision gates) set this; hook-based CLIs that only signal "a prompt is
+       *  showing" leave it undefined. */
+      message?: string;
+      /** Choices offered alongside the question, when the provider supplies them. */
+      options?: string[];
+    }
   | {
       kind: 'sessionStart';
       source?: string;
@@ -59,6 +67,12 @@ export type AgentEvent =
       /** Working directory the session was started in. Used to match pending
        *  external sessions against known workspace folders. */
       cwd?: string;
+      /** The underlying CLI behind this session ('codex', 'gemini', ...) when the
+       *  provider aggregates several. Drives the UI badge. Undefined means the
+       *  provider speaks for a single CLI and its own id is enough. */
+      agentKind?: string;
+      /** Human-facing name for the session, when the provider knows one. */
+      displayName?: string;
     }
   | { kind: 'sessionEnd'; reason?: string };
 

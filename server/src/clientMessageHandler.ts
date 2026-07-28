@@ -266,6 +266,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   const agentIds: number[] = [];
   const folderNames: Record<number, string> = {};
   const externalAgents: Record<number, boolean> = {};
+  const agentProviders: Record<number, string> = {};
   for (const [id, agent] of store) {
     agentIds.push(id);
     if (agent.folderName) {
@@ -273,6 +274,11 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     }
     if (agent.isExternal) {
       externalAgents[id] = true;
+    }
+    if (agent.providerId) {
+      // Badge shows what the agent *is* (codex, gemini) when known, falling back to
+      // the provider that reported it.
+      agentProviders[id] = agent.agentKind ?? agent.providerId;
     }
   }
   const seats = adapter?.loadSeats() ?? {};
@@ -282,6 +288,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
     agentMeta: seats,
     folderNames,
     externalAgents,
+    agentProviders,
   });
 
   // 7. Layout last (see step 3): flushes the webview's buffered existingAgents

@@ -179,6 +179,11 @@ components:
           type: string
         isExternal:
           type: boolean
+        providerId:
+          type: string
+          description: |
+            Provider that created this agent ('claude', 'orca', ...).
+            Omitted for the default provider.
 
     AgentClosed:
       description: An agent has been removed from the office.
@@ -231,6 +236,14 @@ components:
           description: Map of agent ID (string) to external flag.
           additionalProperties:
             type: boolean
+        agentProviders:
+          type: object
+          description: |
+            Map of agent ID (string) to the provider that created the agent
+            ('claude', 'orca', ...). Absent entries mean the default provider.
+            The UI uses this to badge non-default agents.
+          additionalProperties:
+            type: string
 
     AgentStatus:
       description: Active vs waiting state for an agent (drives character animation).

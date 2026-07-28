@@ -34,6 +34,10 @@ export interface AgentState {
   hooksOnly?: boolean;
   /** Provider that created this agent (defaults to 'claude') */
   providerId?: string;
+  /** The underlying CLI behind this session ('codex', 'gemini', ...) when the provider
+   *  aggregates several. Preferred over providerId for the UI badge — users care that
+   *  it is Codex, not that it arrived via Orca. */
+  agentKind?: string;
   /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
   pendingClear?: boolean;
   /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */

@@ -132,6 +132,7 @@ export function useExtensionMessages(
       hueShift?: number;
       seatId?: string;
       folderName?: string;
+      providerId?: string;
     }> = [];
 
     // Accumulate distinct folderNames seen across agents (never removed during the
@@ -192,6 +193,10 @@ export function useExtensionMessages(
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
           os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
+          if (p.providerId) {
+            const ch = os.characters.get(p.id);
+            if (ch) ch.providerId = p.providerId;
+          }
         }
         pendingAgents = [];
         layoutReadyRef.current = true;
@@ -209,6 +214,7 @@ export function useExtensionMessages(
         const teammateName = msg.teammateName as string | undefined;
         const teammateParentId = msg.parentAgentId as number | undefined;
         const teamName = msg.teamName as string | undefined;
+        const providerId = msg.providerId as string | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         // Don't auto-select teammates (keep focus on lead)
         if (!isTeammate) {
@@ -232,6 +238,10 @@ export function useExtensionMessages(
         } else {
           os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
           noteFolderName(folderName);
+        }
+        if (providerId) {
+          const ch = os.characters.get(id);
+          if (ch) ch.providerId = providerId;
         }
         saveAgentSeats(os);
       } else if (msg.type === 'agentClosed') {
@@ -267,6 +277,7 @@ export function useExtensionMessages(
           { palette?: number; hueShift?: number; seatId?: string }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
+        const agentProviders = (msg.agentProviders || {}) as Record<number, string>;
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id];
@@ -276,6 +287,7 @@ export function useExtensionMessages(
             hueShift: m?.hueShift,
             seatId: m?.seatId,
             folderName: folderNames[id],
+            providerId: agentProviders[id],
           });
           noteFolderName(folderNames[id]);
         }

@@ -6,6 +6,9 @@ export interface PendingExternalSession {
   /** Transcript file path. Undefined for providers without transcripts (OpenCode, Copilot). */
   transcriptPath: string | undefined;
   cwd: string;
+  /** Underlying CLI reported at SessionStart, carried through until the session is
+   *  confirmed and an agent is created. Undefined for single-CLI providers. */
+  agentKind?: string;
 }
 
 /** An event waiting to be dispatched once its agent registers. */

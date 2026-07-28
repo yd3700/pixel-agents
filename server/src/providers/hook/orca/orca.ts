@@ -44,7 +44,14 @@ function normalizeHookEvent(
       return {
         sessionId,
         // transcriptPath 를 주지 않는 것이 hooks-only 경로를 타는 신호다.
-        event: { kind: 'sessionStart', source: 'orca', cwd: event.worktree },
+        event: {
+          kind: 'sessionStart',
+          source: 'orca',
+          cwd: event.worktree,
+          // Orca 는 여러 CLI 를 대표하므로 어느 CLI 인지 알려줘야 배지를 그릴 수 있다.
+          agentKind: event.agentKind,
+          ...(event.displayName ? { displayName: event.displayName } : {}),
+        },
       };
 
     case 'toolChanged':
@@ -67,10 +74,14 @@ function normalizeHookEvent(
       return { sessionId, event: { kind: 'turnEnd', awaitingInput: true } };
 
     case 'gateOpened':
-      // AgentEvent.permissionRequest 는 필드를 갖지 않는다. 게이트 질문 텍스트를
-      // 실을 자리가 없으므로 여기서는 "승인 대기" 표시만 한다.
-      // 질문 본문은 B4 의 Decision Gate 패널이 별도 채널로 받는다.
-      return { sessionId, event: { kind: 'permissionRequest' } };
+      return {
+        sessionId,
+        event: {
+          kind: 'permissionRequest',
+          ...(event.gateQuestion ? { message: event.gateQuestion } : {}),
+          ...(event.gateOptions?.length ? { options: event.gateOptions } : {}),
+        },
+      };
 
     case 'agentStopped':
       return { sessionId, event: { kind: 'sessionEnd', reason: 'orca' } };

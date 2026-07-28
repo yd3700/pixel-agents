@@ -71,6 +71,7 @@ export interface AgentCreated {
   id: number;
   folderName?: string;
   isExternal?: boolean;
+  providerId?: string;
 }
 
 export interface AgentClosed {
@@ -89,6 +90,7 @@ export interface ExistingAgents {
   agentMeta: Record<string, AgentSeatMeta>;
   folderNames: Record<string, string>;
   externalAgents: Record<string, boolean>;
+  agentProviders?: Record<string, string>;
 }
 
 export interface AgentSeatMeta {

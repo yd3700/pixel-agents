@@ -11,6 +11,7 @@ import {
   FUEL_GAUGE_HEIGHT_PX,
   FUEL_GAUGE_WIDTH_PX,
   MAX_CONTEXT_TOKENS,
+  PROVIDER_BADGE_COLOR,
   TEAM_LEAD_COLOR,
   TEAM_ROLE_COLOR,
   TOKEN_CRITICAL_THRESHOLD,
@@ -236,6 +237,14 @@ export function ToolOverlay({
                     }}
                   >
                     {teamRoleLabel}
+                  </span>
+                )}
+                {ch.providerId && (
+                  <span
+                    className="overflow-hidden text-ellipsis block leading-none"
+                    style={{ fontSize: '16px', color: PROVIDER_BADGE_COLOR }}
+                  >
+                    {ch.providerId.toUpperCase()}
                   </span>
                 )}
                 <span
