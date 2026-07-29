@@ -199,9 +199,44 @@ function registerBoardRoute(app: FastifyInstance, options: HttpServerOptions): v
 
 // ── WebSocket ──────────────────────────────────────────────────
 
+/**
+ * Standalone mode has no Bearer check on `/ws` — the server binds to loopback, so
+ * "only local clients" was considered enough. It is not, for one specific reason:
+ * **a browser page can open a WebSocket to localhost.** WebSockets skip the CORS
+ * preflight, so any site the user visits can connect to this server unless we look
+ * at `Origin` ourselves.
+ *
+ * That did not matter while the UI was read-only. It matters as soon as the client
+ * can act on the user's agents.
+ *
+ * A native process (curl, a script, the bridge) sends no `Origin` and is allowed
+ * through. That is not a hole worth closing here: a process running as this user
+ * can already read the token out of `~/.pixel-agents/server.json`, or just run the
+ * underlying CLI. The browser is the only caller that gains reach it did not have.
+ *
+ * Any loopback port is allowed, not just ours — the Vite dev server serves the SPA
+ * from a different port and legitimately connects here.
+ */
+export function isAllowedOrigin(origin: string | undefined): boolean {
+  if (origin === undefined || origin === '') return true;
+
+  let hostname: string;
+  try {
+    hostname = new URL(origin).hostname;
+  } catch {
+    return false;
+  }
+  return (
+    hostname === '127.0.0.1' ||
+    hostname === 'localhost' ||
+    hostname === '[::1]' ||
+    hostname === '::1'
+  );
+}
+
 function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions): void {
   app.get('/ws', { websocket: true }, (socket, request) => {
-    // In standalone mode (not embedded), skip auth for WebSocket connections.
+    // In standalone mode (not embedded), skip Bearer auth for WebSocket connections.
     // The server binds to 127.0.0.1, so only local clients can connect.
     // In embedded mode (VS Code), require Bearer token for security.
     if (options.embedded) {
@@ -213,6 +248,9 @@ function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions
         socket.close(4001, 'unauthorized');
         return;
       }
+    } else if (!isAllowedOrigin(request.headers.origin)) {
+      socket.close(4003, 'forbidden origin');
+      return;
     }
 
     const { store } = options;
