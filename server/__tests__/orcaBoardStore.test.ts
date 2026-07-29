@@ -2,9 +2,9 @@
  * Command queue validation.
  *
  * This queue is the only path by which the UI can change Orca state. Everything
- * else in this integration is read-only. If the whitelist here leaks, anything
- * that can reach the WebSocket can decide any gate with any value — and in
- * standalone mode that socket is unauthenticated on loopback (httpServer.ts).
+ * else in this integration is read-only, so if the whitelist here leaks, anything
+ * that reaches the WebSocket can decide gates and assign work. The origin check in
+ * httpServer.ts keeps browsers out; this keeps a legitimate client honest.
  *
  * So the rejection cases matter more than the happy path.
  */
@@ -126,5 +126,84 @@ describe('drain', () => {
     store.enqueueFocus('orca:a:b');
     store.clear();
     expect(store.drain()).toEqual([]);
+  });
+});
+
+describe('dispatch queueing', () => {
+  it('accepts a dispatchable task on the board', () => {
+    const store = seeded();
+    store.update({
+      v: 1,
+      tasks: [{ id: 'task_ready', title: 'Auth', status: 'ready' }],
+      gates: [],
+      at: '',
+    });
+    expect(store.enqueueDispatch('task_ready', 'orca:a:b')).toBe(true);
+    expect(store.drain()).toEqual([
+      { kind: 'dispatch', taskId: 'task_ready', agentId: 'orca:a:b' },
+    ]);
+  });
+
+  it('rejects a task that is not on the board', () => {
+    const store = seeded();
+    expect(store.enqueueDispatch('task_nope', 'orca:a:b')).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+
+  it('rejects a blocked task — dispatching it would jump the gate', () => {
+    const store = seeded();
+    // seeded() has task_1 as blocked.
+    expect(store.enqueueDispatch('task_1', 'orca:a:b')).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+
+  it('rejects a target that is not an Orca agent', () => {
+    const store = seeded();
+    store.update({
+      v: 1,
+      tasks: [{ id: 'task_ready', title: 'Auth', status: 'ready' }],
+      gates: [],
+      at: '',
+    });
+    expect(store.enqueueDispatch('task_ready', 'claude-session-abc')).toBe(false);
+    expect(store.enqueueDispatch('task_ready', 7)).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+});
+
+describe('createTask queueing', () => {
+  it('accepts a title and spec, trimmed', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask('  로그인  ', '  이메일 입력  ')).toBe(true);
+    expect(store.drain()).toEqual([{ kind: 'createTask', title: '로그인', spec: '이메일 입력' }]);
+  });
+
+  it('rejects blank input', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask('   ', 'spec')).toBe(false);
+    expect(store.enqueueCreateTask('title', '   ')).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+
+  it('rejects oversized text — this becomes agent input once dispatched', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask('t', 'a'.repeat(4001))).toBe(false);
+    expect(store.enqueueCreateTask('t'.repeat(201), 'spec')).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+
+  it('rejects non-string input', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask(42, 'spec')).toBe(false);
+    expect(store.enqueueCreateTask('t', null)).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+
+  it('does not dispatch what it creates — creating never runs anything', () => {
+    const store = seeded();
+    store.enqueueCreateTask('제목', '명세');
+    const drained = store.drain();
+    expect(drained).toHaveLength(1);
+    expect(drained[0]).toMatchObject({ kind: 'createTask' });
   });
 });

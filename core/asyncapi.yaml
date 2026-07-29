@@ -123,6 +123,8 @@ components:
         - $ref: '#/components/schemas/LaunchAgent'
         - $ref: '#/components/schemas/FocusAgent'
         - $ref: '#/components/schemas/ResolveGate'
+        - $ref: '#/components/schemas/DispatchTask'
+        - $ref: '#/components/schemas/CreateTask'
         - $ref: '#/components/schemas/CloseAgent'
         - $ref: '#/components/schemas/SaveAgentSeats'
         - $ref: '#/components/schemas/SaveLayout'
@@ -774,6 +776,40 @@ components:
           type: string
         resolution:
           type: string
+
+    DispatchTask:
+      description: >
+        Assign a board task to an agent. Carries the numeric agent id — the webview
+        never learns the bridge's session ids. The server drops anything that is not
+        a dispatchable task on the current board targeting an Orca-managed agent.
+      type: object
+      additionalProperties: false
+      required: [type, taskId, agentId]
+      properties:
+        type:
+          const: dispatchTask
+        taskId:
+          type: string
+        agentId:
+          type: integer
+
+    CreateTask:
+      description: >
+        Create a new orchestration task. The only client message carrying free text,
+        so the server trims it and enforces length limits before queueing. Creating
+        does not run anything — dispatch is a separate action.
+      type: object
+      additionalProperties: false
+      required: [type, title, spec]
+      properties:
+        type:
+          const: createTask
+        title:
+          type: string
+          maxLength: 200
+        spec:
+          type: string
+          maxLength: 4000
 
     CloseAgent:
       description: Close (dismiss) an agent.

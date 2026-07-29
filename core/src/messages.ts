@@ -43,6 +43,8 @@ export type ClientMessage =
   | LaunchAgent
   | FocusAgent
   | ResolveGate
+  | DispatchTask
+  | CreateTask
   | CloseAgent
   | SaveAgentSeats
   | SaveLayout
@@ -317,6 +319,18 @@ export interface ResolveGate {
   type: 'resolveGate';
   gateId: string;
   resolution: string;
+}
+
+export interface DispatchTask {
+  type: 'dispatchTask';
+  taskId: string;
+  agentId: number;
+}
+
+export interface CreateTask {
+  type: 'createTask';
+  title: string;
+  spec: string;
 }
 
 export interface CloseAgent {

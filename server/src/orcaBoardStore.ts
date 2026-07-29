@@ -83,7 +83,17 @@ function parseBoard(raw: unknown): OrcaBoard | null {
 
 /** 브리지가 가져갈 때까지 들고 있는 명령. */
 export type OrcaCommand =
-  { kind: 'focus'; agentId: string } | { kind: 'resolveGate'; gateId: string; resolution: string };
+  | { kind: 'focus'; agentId: string }
+  | { kind: 'resolveGate'; gateId: string; resolution: string }
+  | { kind: 'dispatch'; taskId: string; agentId: string }
+  | { kind: 'createTask'; title: string; spec: string };
+
+/** 브리지와 같은 값. 넘치는 텍스트는 큐에 들어가기 전에 자른다. */
+const MAX_TASK_TITLE = 200;
+const MAX_TASK_SPEC = 4_000;
+
+/** 배정할 수 있는 상태. 브리지도 같은 판단을 한 번 더 한다. */
+const DISPATCHABLE = new Set(['ready', 'pending']);
 
 /**
  * 큐 상한. 브리지가 죽어 있는 동안 클릭이 쌓여도 메모리가 늘지 않게 한다.
@@ -138,6 +148,41 @@ export class OrcaBoardStore {
   enqueueFocus(agentId: unknown): boolean {
     if (typeof agentId !== 'string' || !agentId.startsWith('orca:')) return false;
     return this.enqueue({ kind: 'focus', agentId });
+  }
+
+  /**
+   * 작업을 에이전트에 배정한다.
+   *
+   * 두 인자 모두 id 라 화면이 지어낼 수 없다. 작업은 현재 보드에 배정 가능한
+   * 상태로 있어야 하고, 대상이 실제로 살아 있는지는 브리지가 자기 스냅샷으로
+   * 판단한다 — 에이전트 목록의 원본은 그쪽이다.
+   */
+  enqueueDispatch(taskId: unknown, agentId: unknown): boolean {
+    if (typeof taskId !== 'string' || typeof agentId !== 'string') return false;
+    if (!agentId.startsWith('orca:')) return false;
+
+    const task = this.board.tasks.find((t) => t.id === taskId);
+    if (!task || !DISPATCHABLE.has(task.status.toLowerCase())) return false;
+
+    return this.enqueue({ kind: 'dispatch', taskId, agentId });
+  }
+
+  /**
+   * 새 작업을 만든다. **유일하게 자유 텍스트를 받는 경로다.**
+   *
+   * 대조할 보드 상태가 없으므로 형태와 길이만 본다. 이 텍스트는 나중에 배정될 때
+   * 에이전트 입력이 되므로(Orca 가 preamble 뒤에 붙인다) 무제한으로 받지 않는다.
+   * 생성과 배정을 분리해 둔 것도 같은 이유다 — 만들어졌다고 저절로 실행되지 않는다.
+   */
+  enqueueCreateTask(title: unknown, spec: unknown): boolean {
+    if (typeof title !== 'string' || typeof spec !== 'string') return false;
+
+    const cleanTitle = title.trim();
+    const cleanSpec = spec.trim();
+    if (cleanTitle === '' || cleanSpec === '') return false;
+    if (cleanTitle.length > MAX_TASK_TITLE || cleanSpec.length > MAX_TASK_SPEC) return false;
+
+    return this.enqueue({ kind: 'createTask', title: cleanTitle, spec: cleanSpec });
   }
 
   /** 브리지가 가져간다. 넘겨준 것은 큐에서 지운다 — 두 번 실행하면 안 된다. */

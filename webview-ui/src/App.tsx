@@ -98,6 +98,24 @@ function App() {
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
   const [isBoardOpen, setIsBoardOpen] = useState(false);
+
+  // 배정 대상 목록. providerId 는 기본 provider 가 아닌 에이전트에만 붙으므로
+  // 그게 곧 "Orca 가 관리하는 것" 이다. 서버가 sessionId 로 한 번 더 확인한다.
+  //
+  // 라벨은 CLI 이름(CODEX)으로 짓고, 같은 이름이 둘 이상일 때만 번호를 붙인다.
+  // 브리지가 보내는 displayName 은 아직 여기까지 배선돼 있지 않다.
+  const boardAgents = useMemo(() => {
+    const found = agents.flatMap((id) => {
+      const ch = getOfficeState().characters.get(id);
+      return ch?.providerId ? [{ id, kind: ch.providerId }] : [];
+    });
+    const counts = new Map<string, number>();
+    for (const a of found) counts.set(a.kind, (counts.get(a.kind) ?? 0) + 1);
+    return found.map((a) => ({
+      ...a,
+      label: counts.get(a.kind)! > 1 ? `${a.kind.toUpperCase()} ${a.id}` : a.kind.toUpperCase(),
+    }));
+  }, [agents]);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
@@ -493,7 +511,12 @@ function App() {
       />
 
       {isBoardOpen && (
-        <TaskBoard tasks={board.tasks} gates={board.gates} onClose={() => setIsBoardOpen(false)} />
+        <TaskBoard
+          tasks={board.tasks}
+          gates={board.gates}
+          agents={boardAgents}
+          onClose={() => setIsBoardOpen(false)}
+        />
       )}
 
       <VersionIndicator

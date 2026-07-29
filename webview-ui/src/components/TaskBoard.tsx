@@ -18,11 +18,22 @@ import {
 import { transport } from '../transport/index.js';
 import { Button } from './ui/Button.js';
 
+/** 배정 대상. Orca 가 관리하는 에이전트만 담긴다. */
+export interface BoardAgent {
+  id: number;
+  label: string;
+  kind: string;
+}
+
 interface TaskBoardProps {
   tasks: BoardTask[];
   gates: BoardGate[];
+  agents: BoardAgent[];
   onClose: () => void;
 }
+
+/** 배정할 수 있는 상태. 서버와 브리지가 각각 같은 판단을 다시 한다. */
+const DISPATCHABLE = new Set(['ready', 'pending']);
 
 /** Orca 의 status 값을 보드 열로 접는다. 모르는 값은 READY 로 둔다. */
 type Column = 'READY' | 'WORKING' | 'BLOCKED' | 'DONE';
@@ -40,6 +51,10 @@ const COLUMN_OF: Record<string, Column> = {
 
 const COLUMNS: Column[] = ['READY', 'WORKING', 'BLOCKED', 'DONE'];
 
+/** 서버·브리지의 상한과 같은 값. 넘기기 전에 입력에서 먼저 막는다. */
+const MAX_TITLE = 200;
+const MAX_SPEC = 4000;
+
 const COLUMN_COLOR: Record<Column, string> = {
   READY: BOARD_STATUS_READY_COLOR,
   WORKING: BOARD_STATUS_WORKING_COLOR,
@@ -51,7 +66,8 @@ function columnOf(status: string): Column {
   return COLUMN_OF[status.toLowerCase()] ?? 'READY';
 }
 
-export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
+export function TaskBoard({ tasks, gates, agents, onClose }: TaskBoardProps) {
+  const [isCreating, setIsCreating] = useState(false);
   const pendingGates = gates.filter((g) => g.status === 'pending');
   const grouped = COLUMNS.map((column) => ({
     column,
@@ -62,19 +78,26 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
     <div className="pixel-panel absolute top-0 right-0 h-full w-320 max-w-[35vw] flex flex-col overflow-hidden z-20">
       <div className="flex items-center justify-between px-14 py-12 border-b border-border">
         <span className="text-sm">Orca Board</span>
-        <button type="button" onClick={onClose} className="text-sm px-6" aria-label="Close board">
-          ✕
-        </button>
+        <div className="flex items-center gap-8">
+          <Button onClick={() => setIsCreating((v) => !v)} title="새 작업 만들기">
+            {isCreating ? '취소' : '+ 작업'}
+          </Button>
+          <button type="button" onClick={onClose} className="text-sm px-6" aria-label="Close board">
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-14 py-14 flex flex-col gap-20">
+        {isCreating && <NewTaskForm onDone={() => setIsCreating(false)} />}
+
         {pendingGates.length > 0 && <DecisionGatePanel gates={pendingGates} />}
 
         {tasks.length === 0 && pendingGates.length === 0 ? (
           <p className="text-2xs opacity-60 leading-relaxed">
             진행 중인 작업이 없습니다.
-            <br />
-            Orca 에서 작업을 만들면 여기에 나타납니다.
+            <br />위 <span className="opacity-100">+ 작업</span> 으로 만들거나 Orca 에서 만들면
+            여기에 나타납니다.
           </p>
         ) : (
           grouped.map(({ column, items }) => (
@@ -87,13 +110,7 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
               ) : (
                 <ul className="flex flex-col gap-8">
                   {items.map((task) => (
-                    <li
-                      key={task.id}
-                      className="text-2xs px-10 py-8 border-l-2 leading-snug break-words"
-                      style={{ borderColor: COLUMN_COLOR[column] }}
-                    >
-                      {task.title}
-                    </li>
+                    <TaskCard key={task.id} task={task} column={column} agents={agents} />
                   ))}
                 </ul>
               )}
@@ -102,6 +119,113 @@ export function TaskBoard({ tasks, gates, onClose }: TaskBoardProps) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * 작업 카드. 배정 가능한 상태면 에이전트 선택기를 연다.
+ *
+ * 확인 단계를 따로 두지 않는다. "배정" 을 누르고 에이전트를 고르는 두 번의 클릭
+ * 자체가 이미 의도를 확인하는 절차다. 게이트와 달리 대상을 골라야 하므로
+ * 한 번의 오클릭으로는 아무 일도 일어나지 않는다.
+ */
+function TaskCard({
+  task,
+  column,
+  agents,
+}: {
+  task: BoardTask;
+  column: Column;
+  agents: BoardAgent[];
+}) {
+  const [picking, setPicking] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const canDispatch = DISPATCHABLE.has(task.status.toLowerCase()) && agents.length > 0;
+
+  const dispatch = (agentId: number) => {
+    transport.send({ type: 'dispatchTask', taskId: task.id, agentId });
+    setPicking(false);
+    setSent(true);
+  };
+
+  return (
+    <li
+      className="text-2xs px-10 py-8 border-l-2 leading-snug break-words"
+      style={{ borderColor: COLUMN_COLOR[column] }}
+    >
+      <p>{task.title}</p>
+
+      {sent ? (
+        <p className="mt-6 opacity-60">배정을 보냈습니다…</p>
+      ) : picking ? (
+        <div className="mt-8 flex flex-wrap gap-6">
+          {agents.map((a) => (
+            <Button key={a.id} variant="accent" onClick={() => dispatch(a.id)}>
+              {a.label}
+            </Button>
+          ))}
+          <Button onClick={() => setPicking(false)}>취소</Button>
+        </div>
+      ) : (
+        canDispatch && (
+          <div className="mt-6">
+            <Button onClick={() => setPicking(true)}>배정</Button>
+          </div>
+        )
+      )}
+    </li>
+  );
+}
+
+/**
+ * 새 작업 입력.
+ *
+ * 이 화면에서 자유 텍스트가 나가는 유일한 곳이다. 만들기만 하고 배정하지 않는다 —
+ * 만든 작업이 저절로 실행되지 않게 두 단계로 나눈 것이 이 기능의 안전 설계다.
+ */
+function NewTaskForm({ onDone }: { onDone: () => void }) {
+  const [title, setTitle] = useState('');
+  const [spec, setSpec] = useState('');
+
+  const ready = title.trim() !== '' && spec.trim() !== '';
+
+  const submit = () => {
+    if (!ready) return;
+    transport.send({ type: 'createTask', title: title.trim(), spec: spec.trim() });
+    onDone();
+  };
+
+  return (
+    <section
+      className="flex flex-col gap-8 border px-10 py-10"
+      style={{ borderColor: 'currentColor' }}
+    >
+      <input
+        className="text-2xs px-6 py-6 bg-transparent border border-border"
+        placeholder="작업 이름"
+        maxLength={MAX_TITLE}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <textarea
+        className="text-2xs px-6 py-6 bg-transparent border border-border resize-none"
+        placeholder="무엇을 해야 하는지 적으세요"
+        rows={4}
+        maxLength={MAX_SPEC}
+        value={spec}
+        onChange={(e) => setSpec(e.target.value)}
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-2xs opacity-40">
+          {spec.length}/{MAX_SPEC}
+        </span>
+        <Button variant="accent" onClick={submit} disabled={!ready}>
+          만들기
+        </Button>
+      </div>
+      <p className="text-2xs opacity-40 leading-snug">만들기만 합니다. 배정은 따로 하세요.</p>
+    </section>
   );
 }
 

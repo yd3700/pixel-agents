@@ -14,6 +14,8 @@ let orcaBoardStore:
       isEmpty(): boolean;
       enqueueResolveGate(gateId: unknown, resolution: unknown): boolean;
       enqueueFocus(agentId: unknown): boolean;
+      enqueueDispatch(taskId: unknown, agentId: unknown): boolean;
+      enqueueCreateTask(title: unknown, spec: unknown): boolean;
     }
   | undefined;
 
@@ -198,6 +200,26 @@ export function handleClientMessage(
      */
     case 'resolveGate': {
       orcaBoardStore?.enqueueResolveGate(msg.gateId, msg.resolution);
+      break;
+    }
+
+    /**
+     * Assign a board task to an agent.
+     *
+     * Carries the numeric agent id, like focusAgent — the webview never learns the
+     * bridge's session ids, and this server already owns the mapping.
+     */
+    case 'dispatchTask': {
+      const sessionId = store.get(msg.agentId as number)?.sessionId;
+      if (sessionId?.startsWith('orca:')) {
+        orcaBoardStore?.enqueueDispatch(msg.taskId, sessionId);
+      }
+      break;
+    }
+
+    /** The only client message carrying free text. Length-checked in the store. */
+    case 'createTask': {
+      orcaBoardStore?.enqueueCreateTask(msg.title, msg.spec);
       break;
     }
 
