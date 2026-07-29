@@ -331,6 +331,7 @@ export interface CreateTask {
   type: 'createTask';
   title: string;
   spec: string;
+  agentId?: number;
 }
 
 export interface CloseAgent {

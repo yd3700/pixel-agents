@@ -207,3 +207,31 @@ describe('createTask queueing', () => {
     expect(drained[0]).toMatchObject({ kind: 'createTask' });
   });
 });
+
+describe('createTask with immediate dispatch', () => {
+  it('carries the target through', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask('제목', '명세', 'orca:a:b')).toBe(true);
+    expect(store.drain()).toEqual([
+      { kind: 'createTask', title: '제목', spec: '명세', dispatchTo: 'orca:a:b' },
+    ]);
+  });
+
+  it('rejects a target that is not an Orca agent', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask('제목', '명세', 'claude-session-abc')).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+
+  it('omits the target when none is given — the board button only creates', () => {
+    const store = seeded();
+    store.enqueueCreateTask('제목', '명세');
+    expect(store.drain()[0]).not.toHaveProperty('dispatchTo');
+  });
+
+  it('applies the same length limits with a target present', () => {
+    const store = seeded();
+    expect(store.enqueueCreateTask('제목', 'a'.repeat(4001), 'orca:a:b')).toBe(false);
+    expect(store.drain()).toEqual([]);
+  });
+});

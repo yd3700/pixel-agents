@@ -15,7 +15,7 @@ let orcaBoardStore:
       enqueueResolveGate(gateId: unknown, resolution: unknown): boolean;
       enqueueFocus(agentId: unknown): boolean;
       enqueueDispatch(taskId: unknown, agentId: unknown): boolean;
-      enqueueCreateTask(title: unknown, spec: unknown): boolean;
+      enqueueCreateTask(title: unknown, spec: unknown, dispatchTo?: string): boolean;
     }
   | undefined;
 
@@ -217,9 +217,19 @@ export function handleClientMessage(
       break;
     }
 
-    /** The only client message carrying free text. Length-checked in the store. */
+    /**
+     * The only client message carrying free text. Length-checked in the store.
+     *
+     * `agentId` is optional: the board's "+ 작업" omits it and only creates, while
+     * clicking a character sends it so the task goes straight to that agent — at
+     * that point the user has already picked the target, so splitting it into two
+     * steps would just be a second click on the same decision.
+     */
     case 'createTask': {
-      orcaBoardStore?.enqueueCreateTask(msg.title, msg.spec);
+      const target =
+        msg.agentId === undefined ? undefined : store.get(msg.agentId as number)?.sessionId;
+      if (msg.agentId !== undefined && !target?.startsWith('orca:')) break;
+      orcaBoardStore?.enqueueCreateTask(msg.title, msg.spec, target);
       break;
     }
 

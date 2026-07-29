@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { toMajorMinor } from './changelogData.js';
+import { AgentTaskModal } from './components/AgentTaskModal.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -98,6 +99,8 @@ function App() {
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
   const [isBoardOpen, setIsBoardOpen] = useState(false);
+  /** 캐릭터를 클릭해 연 "작업 주기" 창의 대상. null 이면 닫혀 있다. */
+  const [taskTarget, setTaskTarget] = useState<{ id: number; label: string } | null>(null);
 
   // 배정 대상 목록. providerId 는 기본 provider 가 아닌 에이전트에만 붙으므로
   // 그게 곧 "Orca 가 관리하는 것" 이다. 서버가 sessionId 로 한 번 더 확인한다.
@@ -228,6 +231,18 @@ function App() {
     const os = getOfficeState();
     const meta = os.subagentMeta.get(agentId);
     const focusId = meta ? meta.parentAgentId : agentId;
+
+    // Orca 가 관리하는 에이전트는 일을 줄 수 있으므로 창을 연다. 창 안에
+    // "터미널 열기" 가 있어 종전의 포커스도 그대로 할 수 있다.
+    //
+    // 나머지(Claude 세션)는 종전대로 focusAgent 를 보낸다. standalone 에는
+    // 그걸 처리할 IDE 어댑터가 없어 실제로는 아무 일도 일어나지 않지만,
+    // 어댑터가 있는 환경에서는 이 경로가 살아 있다.
+    const ch = os.characters.get(focusId);
+    if (ch?.providerId) {
+      setTaskTarget({ id: focusId, label: ch.providerId.toUpperCase() });
+      return;
+    }
     transport.send({ type: 'focusAgent', id: focusId });
   }, []);
 
@@ -509,6 +524,8 @@ function App() {
         isBoardOpen={isBoardOpen}
         onToggleBoard={() => setIsBoardOpen((v) => !v)}
       />
+
+      <AgentTaskModal agent={taskTarget} onClose={() => setTaskTarget(null)} />
 
       {isBoardOpen && (
         <TaskBoard

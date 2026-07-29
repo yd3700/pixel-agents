@@ -796,8 +796,7 @@ components:
     CreateTask:
       description: >
         Create a new orchestration task. The only client message carrying free text,
-        so the server trims it and enforces length limits before queueing. Creating
-        does not run anything — dispatch is a separate action.
+        so the server trims it and enforces length limits before queueing.
       type: object
       additionalProperties: false
       required: [type, title, spec]
@@ -810,6 +809,13 @@ components:
         spec:
           type: string
           maxLength: 4000
+        agentId:
+          type: integer
+          description: |
+            Optional. Without it the task is only created and dispatch stays a
+            separate action. With it the task goes straight to this agent — the
+            flow behind clicking a character, where the target is already chosen.
+            Must resolve to an Orca-managed agent or the message is dropped.
 
     CloseAgent:
       description: Close (dismiss) an agent.
